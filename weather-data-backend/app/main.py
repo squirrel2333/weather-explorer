@@ -1,14 +1,16 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
 from app.service import weather_service
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional, Union
+from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="气象数据查询服务")
+
+# 允许跨域
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源，生产环境建议改为 ["http://localhost:3001"]
+    allow_origins=["*"],  # 允许所有来源
     allow_credentials=True,
     allow_methods=["*"],  # 允许所有方法，包括 OPTIONS
     allow_headers=["*"],  # 允许所有 Header
@@ -38,18 +40,63 @@ class WeatherResponse(BaseModel):
     start_time: str
     values: List[TimeValue]
 
+# --- 批处理响应模型 ---
+class LocationItem(BaseModel):
+    lat: float
+    lon: float
+    id: Optional[str] = None  # 客户端自定义ID，方便回溯
 
-# --- 事件钩子 ---
+
+class BatchWeatherRequest(BaseModel):
+    locations: List[LocationItem]
+    time: str
+    vars: List[str]
+    hours: int = 24
+    interval: int = Field(1, ge=1, description="时间间隔(小时)，默认为1")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "locations": [
+                    {"lat": 30.5, "lon": 120.5, "id": "hangzhou"},
+                    {"lat": 39.9, "lon": 116.4, "id": "beijing"}
+                ],
+                "time": "2025-06-01T12:00:00",
+                "vars": ["t2m", "u10", "tp6h"],
+                "hours": 12,
+                "interval": 3
+            }
+        }
+
+class VarDataSimple(BaseModel):
+    var: str
+    unit: str
+    values: List[float]  # 纯数值列表，对应外层的时间轴
+
+
+class LocationResult(BaseModel):
+    id: Optional[str]
+    lat: float
+    lon: float
+    data: Optional[List[VarDataSimple]] = None
+    error: Optional[str] = None
+
+
+class BatchWeatherResponse(BaseModel):
+    start_time: str
+    time_steps: List[str]  # 公共的时间轴
+    locations: List[LocationResult]
+
+
 @app.on_event("startup")
 async def startup_event():
     """服务启动时加载数据"""
     try:
         weather_service.load_dataset()
     except Exception as e:
-        print(f"❌ 数据加载失败: {e}")
+        print(f"数据加载失败: {e}")
 
 
-# --- API 路由 ---
 @app.post("/weather", response_model=WeatherResponse)
 async def get_weather_data(req: WeatherRequest):
     try:
@@ -83,71 +130,10 @@ async def get_weather_data(req: WeatherRequest):
 def health_check():
     return {"status": "running", "data_loaded": weather_service.dataset is not None}
 
-
-# app/main.py
-
-# ... (保留原有的引用) ...
-from typing import List, Optional, Union
-from pydantic import BaseModel, Field
-
-
-# --- 新增：批处理请求模型 ---
-class LocationItem(BaseModel):
-    lat: float
-    lon: float
-    id: Optional[str] = None  # 客户端自定义ID，方便回溯
-
-
-class BatchWeatherRequest(BaseModel):
-    locations: List[LocationItem]
-    time: str
-    vars: List[str]
-    hours: int = 24
-    interval: int = Field(1, ge=1, description="时间间隔(小时)，默认为1")
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "locations": [
-                    {"lat": 30.5, "lon": 120.5, "id": "hangzhou"},
-                    {"lat": 39.9, "lon": 116.4, "id": "beijing"}
-                ],
-                "time": "2025-06-01T12:00:00",
-                "vars": ["t2m", "u10", "tp6h"],
-                "hours": 12,
-                "interval": 3
-            }
-        }
-
-
-# --- 新增：批处理响应模型 ---
-class VarDataSimple(BaseModel):
-    var: str
-    unit: str
-    values: List[float]  # 纯数值列表，对应外层的时间轴
-
-
-class LocationResult(BaseModel):
-    id: Optional[str]
-    lat: float
-    lon: float
-    data: Optional[List[VarDataSimple]] = None
-    error: Optional[str] = None
-
-
-class BatchWeatherResponse(BaseModel):
-    start_time: str
-    time_steps: List[str]  # 公共的时间轴
-    locations: List[LocationResult]
-
-
-# ... (保留原有的 startup_event 和 /weather 接口) ...
-
-# --- 新增：批量查询接口 ---
+# --- 批量查询接口 ---
 @app.post("/weather/batch", response_model=BatchWeatherResponse)
 async def get_weather_batch(req: BatchWeatherRequest):
     try:
-        # 将 locations model 转换为 list of dict 传给 service
         locs_dict = [loc.dict() for loc in req.locations]
 
         result = weather_service.query_batch(
@@ -157,10 +143,6 @@ async def get_weather_batch(req: BatchWeatherRequest):
             hours=req.hours,
             interval=req.interval
         )
-
-        # 补充单位逻辑 (如果nc文件里没读到，用我们之前的映射表兜底)
-        # 注意：这里需要在 service 返回后做一次后处理，或者在 service 里调用 get_unit_for_var
-        # 为了简单，假设 service 里已经尽力获取了单位
 
         return result
 

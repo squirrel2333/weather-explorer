@@ -5,7 +5,7 @@ import { VariableSelector } from './components/VariableSelector';
 import ResultsCharts from './components/ResultsCharts';
 import { WeatherLocationInput, BatchRequest, BatchResponse } from './types';
 import { DEFAULT_LOCATIONS, DEFAULT_VARS } from './constants';
-import { fetchWeatherData, generateMockResponse } from './services/weatherService';
+import { fetchWeatherData } from './services/weatherService';
 
 const App: React.FC = () => {
   // State
@@ -58,21 +58,9 @@ const App: React.FC = () => {
     };
 
     try {
-      if (useMock) {
-        // Simulate network delay
-        await new Promise(r => setTimeout(r, 800));
-        const data = generateMockResponse(payload);
-        setResult(data);
-      } else {
         // Try Fetching real data
-        try {
-            const data = await fetchWeatherData(payload);
-            setResult(data);
-        } catch (err) {
-            console.warn("Real API failed, switching to Mock for demo purposes if desired.");
-            setError(`连接后端服务失败: ${(err as Error).message}. (您可以勾选右上角的'演示模式'来查看模拟数据效果)`);
-        }
-      }
+        const data = await fetchWeatherData(payload);
+        setResult(data);
     } catch (err) {
       setError("发生了意外错误。");
     } finally {
@@ -97,15 +85,6 @@ const App: React.FC = () => {
              </div>
           </div>
           <div className="flex items-center space-x-6">
-             <label className="flex items-center space-x-2 text-sm text-slate-600 cursor-pointer hover:text-blue-600 transition-colors">
-                <input 
-                    type="checkbox" 
-                    checked={useMock} 
-                    onChange={(e) => setUseMock(e.target.checked)}
-                    className="rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                />
-                <span>演示模式 (模拟数据)</span>
-             </label>
              <button 
                 onClick={handleQuery}
                 disabled={loading}
