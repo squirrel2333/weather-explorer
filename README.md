@@ -19,7 +19,7 @@
 ## 云上部署运行
 1. 构建后端镜像： `docker build -t weather-backend:v1.0 -f weather-data-backend/Dockerfile ./weather-data-backend`
 2. 构建前端镜像：`docker build -t weather-frontend:v1.0 -f weather-data-frontend/Dockerfile ./weather-data-frontend`
-3. 准备模型文件+装配文件：
+3. 挂载数据文件+装配文件：
 ```txt
 weather-deploy/
 ├── data/
@@ -58,3 +58,4 @@ services:
     depends_on:
       - weather-backend
 ```
+5. 启动服务: `docker-compose up -d`
