@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # --- 后端服务 ---
+  weather-backend: # 服务名
+    # 【修改点 1】这里的路径必须和你的实际文件夹名一致
+    build: ./weather-data-backend
+    container_name: weather_backend
+    restart: always
+    expose:
+      - "8000"
+    environment:
+      - WEATHER_DATA_PATH=/data/2025-06-01T00_00_00_cn_flatted.nc
+    volumes:
+      # 本地测试时，请确保本地也有这个路径，或者暂时改为本地实际存放 .nc 文件的路径
+      - /Users/hqw/code/weather-explorer/weather-data-backend/data:/data
+
+  # --- 前端服务 ---
+  weather-frontend: # 服务名
+    # 【修改点 2】这里的路径必须和你的实际文件夹名一致
+    build: ./weather-data-frontend
+    container_name: weather_frontend
+    restart: always
+    ports:
+      - "80:80" # 对外暴露端口
+    depends_on:
+      - weather-backend # 确保后端先启动

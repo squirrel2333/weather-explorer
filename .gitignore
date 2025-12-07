@@ -1,0 +1,8 @@
+/weather-data-backend/data/
+/weather-data-backend/.venv/
+/weather-data-backend/.idea/
+.idea
+.DS_Store
+/weather-data-backend/.DS_Store
+/weather-data-backend/app/.DS_Store
+/weather-data-backend/app/__pycache__/

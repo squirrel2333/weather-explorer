@@ -1,0 +1,5 @@
+{
+  "name": "MetData Explorer",
+  "description": "A professional weather data visualization tool allowing users to query and analyze meteorological data from NetCDF sources via a backend API.",
+  "requestFramePermissions": []
+}
